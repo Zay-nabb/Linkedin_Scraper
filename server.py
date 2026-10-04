@@ -84,18 +84,32 @@ class ScraperHandler(SimpleHTTPRequestHandler):
             self.send_json(profile)
             return
 
-        # ---- API: Search People ----
+        # ---- API: Search People (Roster & Role Targeting) ----
         if path == "/api/search/people":
             s = get_scraper()
             if not self._require_login(s):
                 return
             q = params.get("q", [""])[0]
             limit = int(params.get("limit", ["10"])[0])
-            if not q:
-                self.send_json({"error": "Query 'q' required"}, 400)
+            company = params.get("company", [""])[0] or params.get("currentCompany", [""])[0]
+            if not q and not company:
+                self.send_json({"error": "Provide at least a search query 'q' or a 'company'"}, 400)
                 return
-            results = s.search_people(q, limit=limit)
+            results = s.search_people(q, limit=limit, current_company=company if company else None)
             self.send_json({"results": results, "count": len(results)})
+            return
+
+        # ---- API: Company Profile ----
+        if path.startswith("/api/company/"):
+            comp_name = path.split("/api/company/")[1].split("?")[0]
+            s = get_scraper()
+            if not self._require_login(s):
+                return
+            comp = s.get_company(comp_name)
+            if not comp:
+                self.send_json({"error": "Company not found"}, 404)
+                return
+            self.send_json(comp)
             return
 
         # ---- API: Search Companies ----

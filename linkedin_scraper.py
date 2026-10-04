@@ -341,20 +341,25 @@ class LinkedInVoyagerScraper:
         print("[!] Could not find a search request. Set SEARCH_QUERY_ID in .env (see DevTools > Network > graphql).")
         return None
 
-    def _search_get(self, query_id, label, keywords, sort=None, date_posted=None):
-        # Rest.li syntax, NOT JSON. Parentheses/commas must stay unencoded; only the keywords are quoted.
+    def _search_get(self, query_id, label, keywords, sort=None, date_posted=None, current_company=None, start=0, count=10):
+        """Added pagination parameters (start and count) directly into the GraphQL variables payload."""
         qp = f"(key:resultType,value:List({RESULT_TYPES[label]}))"
-        if sort == "recent":  # the site's "Latest" toggle (URL facet sortBy="date_posted")
+        if sort == "recent":  
             qp += ",(key:sortBy,value:List(date_posted))"
-        if date_posted:       # past-24h | past-week | past-month
+        if date_posted:       
             qp += f",(key:datePosted,value:List({date_posted}))"
-        origin = "FACETED_SEARCH" if (sort or date_posted) else "GLOBAL_SEARCH_HEADER"
-        variables = (f"(start:0,origin:{origin},query:(keywords:{quote(keywords)},"
+        if current_company:
+            qp += f",(key:currentCompany,value:List({current_company}))"
+
+        origin = "FACETED_SEARCH" if (sort or date_posted or current_company) else "GLOBAL_SEARCH_HEADER"
+        kw_part = f"keywords:{quote(keywords)}," if keywords else ""
+        
+        variables = (f"(start:{start},count:{count},origin:{origin},query:({kw_part}"
                      f"flagshipSearchIntent:SEARCH_SRP,queryParameters:List({qp}),includeFiltersInResponse:false))")
         url = f"{self.API_BASE}/graphql?includeWebMetadata=true&variables={variables}&queryId={query_id}"
         try:
             r = self.session.get(url, timeout=30)
-            print(f"[DEBUG] GET /graphql (...{query_id[-6:]}) -> {r.status_code}")
+            print(f"[DEBUG] GET /graphql (...{query_id[-6:]}) [start:{start}, count:{count}] -> {r.status_code}")
             return r.json() if r.status_code == 200 else None
         except Exception as e:
             print(f"[!] graphql: {e}")
@@ -365,38 +370,98 @@ class LinkedInVoyagerScraper:
         return (v.get("text", "") if isinstance(v, dict) else v) or ""
 
     def _search(self, label, keywords, limit, parse, **opts):
-        print(f"[*] Searching {label}: '{keywords}'")
+        print(f"[*] Searching {label}: '{keywords}' (target limit: {limit})")
+        all_results = []
+        seen_keys = set()
+        
+        # A conservative page size guarantees LinkedIn won't drop elements 
+        page_size = 10 
+        start = 0
+
+        # Step 1: Find a working GraphQL query ID
+        working_qid = None
         for attempt in (0, 1):
             for qid in self._query_ids():
-                data = self._search_get(qid, label, keywords, **opts)
-                if not data:
-                    continue
-                save_debug(f"search_{label}", data)
-                if label == "posts":  # results are data.searchDashClustersByAll...item.searchFeedUpdate.update
-                    els = [w.get("update") for w in self._deep_all(data, "searchFeedUpdate") if isinstance(w, dict)]
-                else:
-                    els = (self._deep_all(data, "EntityResultViewModel") + self._deep_all(data, "entityResult")
-                           + [i for i in data.get("included", []) if str(i.get("$type", "")).endswith("EntityResultViewModel")])
-                results = [x for x in map(parse, els) if x]
-                if not results:
-                    print(f"[!] Request OK but nothing parsed — check debug_search_{label}.json")
-                else:
-                    print(f"[+] Found {len(results)} {label}")
-                return results[:limit]
-            if opts or (attempt == 0 and not self.discover_search_query()):
+                data = self._search_get(qid, label, keywords, start=0, count=page_size, **opts)
+                if data:
+                    working_qid = qid
+                    break
+            if working_qid or opts or (attempt == 0 and not self.discover_search_query()):
                 break
-        print(f"[!] {label} search failed")
-        return []
 
-    def search_people(self, keywords, limit=10):
+        if not working_qid:
+            print(f"[!] {label} search failed to find a valid queryId")
+            return []
+
+        # Step 2: Paginate securely using the working query ID
+        while len(all_results) < limit:
+            data = self._search_get(working_qid, label, keywords, start=start, count=page_size, **opts)
+            if not data:
+                break
+                
+            save_debug(f"search_{label}_page_{start}", data)
+
+            if label == "posts":
+                els = [w.get("update") for w in self._deep_all(data, "searchFeedUpdate") if isinstance(w, dict)]
+            else:
+                els = (self._deep_all(data, "EntityResultViewModel") + self._deep_all(data, "entityResult")
+                       + [i for i in data.get("included", []) if str(i.get("$type", "")).endswith("EntityResultViewModel")])
+
+            page_results = [x for x in map(parse, els) if x]
+            
+            # Deduplicate entries safely 
+            new_items = []
+            for item in page_results:
+                key = item.get("publicIdentifier") or item.get("permalink") or str(item)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    new_items.append(item)
+
+            if not new_items:
+                print(f"[!] Hit end of results or received duplicates at start={start}. Stopping.")
+                break
+
+            all_results.extend(new_items)
+            start += page_size # Safely advance pagination pointer
+
+            if len(all_results) >= limit:
+                break
+
+            # Politeness delay to prevent rate-limiting when scraping larger rosters
+            time.sleep(1.5)
+
+        print(f"[+] Found {len(all_results)} unique {label}")
+        return all_results[:limit]
+
+    def resolve_company_id(self, identifier):
+        """Resolves a company slug or URL to its numeric LinkedIn ID (e.g. 'microsoft' -> '1035')."""
+        if not identifier:
+            return None
+        identifier = str(identifier).strip()
+        if identifier.isdigit():
+            return identifier
+        m = re.search(r"linkedin\.com/company/([^/?#\s]+)", identifier)
+        slug = m.group(1) if m else identifier.strip("/@")
+        comp = self.get_company(slug)
+        if comp and comp.get("id"):
+            return str(comp["id"])
+        return None
+
+    def search_people(self, keywords="", limit=10, current_company=None):
+        company_id = self.resolve_company_id(current_company) if current_company else None
         def parse(el):
             if not isinstance(el, dict):
                 return None
             nav = self._deep(el, "navigationUrl") or ""
             pid = nav.split("/in/")[1].rstrip("/").split("?")[0] if "/in/" in nav else ""
-            return pid and {"name": self._txt(el, "title"), "headline": self._txt(el, "primarySubtitle"),
-                            "publicIdentifier": pid, "location": self._txt(el, "secondarySubtitle")}
-        return self._search("people", keywords, limit, parse)
+            return pid and {
+                "name": self._txt(el, "title"),
+                "headline": self._txt(el, "primarySubtitle"),
+                "publicIdentifier": pid,
+                "location": self._txt(el, "secondarySubtitle"),
+                "profileUrl": f"https://www.linkedin.com/in/{pid}",
+            }
+        return self._search("people", keywords, limit, parse, current_company=company_id)
 
     def search_companies(self, keywords, limit=10):
         def parse(el):
@@ -435,9 +500,18 @@ class LinkedInVoyagerScraper:
             return None
         c = elems[0]
         inds = c.get("companyIndustries") or [{}]
-        return {"name": c.get("name", ""), "universalName": c.get("universalName", ""),
-                "description": c.get("description", ""), "industry": inds[0].get("localizedName", ""),
-                "staffCount": c.get("staffCount", 0), "website": c.get("websiteUrl", "")}
+        urn = c.get("entityUrn") or c.get("universalName") or ""
+        m = re.search(r"(\d+)", urn)
+        comp_id = m.group(1) if m else None
+        return {
+            "id": comp_id,
+            "name": c.get("name", ""),
+            "universalName": c.get("universalName", ""),
+            "description": c.get("description", ""),
+            "industry": inds[0].get("localizedName", ""),
+            "staffCount": c.get("staffCount", 0),
+            "website": c.get("websiteUrl", ""),
+        }
 
     # ------------------------------------------------------------ feed
     def _feed(self, params, count, start):
@@ -555,7 +629,6 @@ class LinkedInVoyagerScraper:
             "header": _g(u, "header.text.text"), "group": _g(u, "metadata.group.name"), "author": author,
             "text": _g(u, "commentary.text.text", ""), "language": _g(u, "commentary.originalLanguage"),
             "mentions": mentions,
-            # LinkedIn activity ids embed a millisecond timestamp above the lowest 22 bits
             "createdTime": int(m.group(1)) >> 22 if m else None,
             "age": (_g(a, "subDescription.accessibilityText") or _g(a, "subDescription.text", "")).split("•")[0].strip(),
             "numLikes": sc.get("numLikes", 0), "numComments": sc.get("numComments", 0),

@@ -174,10 +174,10 @@ details.pf{margin-bottom:18px;background:rgba(17,26,41,.55);border:1px solid var
 details.pf>summary{cursor:pointer;font-weight:650;padding:14px 2px;color:#dce4f1;font-size:.9rem}
 details.pf .profile-card,details.pf .banner{border-radius:12px}
 
-/* Posts */
+/* Posts & Search Results */
 .result-item{padding:17px 18px;background:linear-gradient(145deg,rgba(19,29,46,.92),rgba(15,23,37,.94));border-radius:15px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 12px 28px rgba(0,0,0,.14)}
 .post .text{white-space:pre-wrap;line-height:1.68;font-size:.9rem;margin:12px 0;color:#e0e7f2}
-.post .text.clamp{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.post .text.clamp{display:-webkit-box;line-clamp:6;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
 .linkbtn{background:none;border:0;color:#b4afff;cursor:pointer;font-size:.78rem;padding:2px 0;font-weight:600}
 .linkbtn:hover{text-decoration:underline}
 .meta{display:flex;gap:14px;margin-top:9px;font-size:.76rem;color:var(--dim);flex-wrap:wrap;align-items:center}
@@ -232,7 +232,6 @@ details.pf .profile-card,details.pf .banner{border-radius:12px}
   .modal{padding:25px 20px;border-radius:18px}
   .profile-card h2{font-size:1.2rem}
 }
-
 </style>
 </head>
 <body>
@@ -249,7 +248,7 @@ details.pf .profile-card,details.pf .banner{border-radius:12px}
       <div class="brand-copy">
         <p class="eyebrow">LINKEDIN RESEARCH TOOLKIT</p>
         <h1>LinkedIn Voyager <span>Workspace</span></h1>
-        <p class="brand-sub">Explore profiles and conversations, then save what matters.</p>
+        <p class="brand-sub">Explore profiles, company rosters, and conversations.</p>
       </div>
     </div>
     <button class="pill" id="statusPill" onclick="showLoginOverlay()" title="Click to log in or switch account">
@@ -261,24 +260,54 @@ details.pf .profile-card,details.pf .banner{border-radius:12px}
 
   <div class="tabs" role="tablist" aria-label="Research tools">
     <button class="tab active" id="tab-profile" role="tab" aria-selected="true" aria-controls="panel-profile" data-tab="profile" onclick="switchTab('profile')">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.5-3.5 3.2-5.4 7-5.4s6.5 1.9 7 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Profiles</span>
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.5-3.5 3.2-5.4 7-5.4s6.5 1.9 7 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>People</span>
     </button>
     <button class="tab" id="tab-posts" role="tab" aria-selected="false" aria-controls="panel-posts" data-tab="posts" onclick="switchTab('posts')">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4.8h8l4 4v10.4H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 4.8v4h4M9 13h6M9 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Posts</span>
     </button>
   </div>
 
-  <!-- Profiles -->
+  <!-- Profiles and Company Roster -->
   <div id="panel-profile" class="panel active" role="tabpanel" aria-labelledby="tab-profile">
     <div class="card">
-      <h2>Find a profile</h2>
-      <label class="lbl" for="profileUsername">Who would you like to learn more about?</label>
-      <div class="bar">
-        <textarea id="profileUsername" rows="2" placeholder="https://www.linkedin.com/in/williamhgates/&#10;satyanadella, jeffweiner08"></textarea>
-        <button class="btn btn-primary" id="profileBtn" onclick="fetchProfiles()">Find profiles</button>
+      <h2>Find people</h2>
+      <div class="seg" id="profileSeg">
+        <button class="active" data-mode="lookup" onclick="setProfileMode('lookup')">Direct Profile Lookup</button>
+        <button data-mode="roster" onclick="setProfileMode('roster')">Company Roster & Roles</button>
       </div>
-      <p class="hint">Paste a LinkedIn profile URL or username. Add more on new lines or separate them with commas. Press Ctrl + Enter to start.</p>
-      <div class="recent" id="recent-profile"></div>
+
+      <!-- Mode 1: Lookup -->
+      <div id="mode-lookup">
+        <label class="lbl" for="profileUsername">Who would you like to learn more about?</label>
+        <div class="bar">
+          <textarea id="profileUsername" rows="2" placeholder="https://www.linkedin.com/in/williamhgates/&#10;satyanadella, jeffweiner08"></textarea>
+          <button class="btn btn-primary" id="profileBtn" onclick="fetchProfiles()">Find profiles</button>
+        </div>
+        <p class="hint">Paste a LinkedIn profile URL or username. Add more on new lines or separate them with commas. Press Ctrl + Enter to start.</p>
+        <div class="recent" id="recent-profile"></div>
+      </div>
+
+      <!-- Mode 2: Company Roster & Roles -->
+      <div id="mode-roster" style="display:none">
+        <label class="lbl" for="rosterCompany">Company handle, link, or ID</label>
+        <div class="bar" style="margin-bottom:10px">
+          <input type="text" id="rosterCompany" placeholder="e.g. microsoft, https://www.linkedin.com/company/microsoft/, or ID: 1035">
+        </div>
+        <label class="lbl" for="rosterRole">Role / Title keyword (optional for decision-makers)</label>
+        <div class="bar">
+          <input type="text" id="rosterRole" placeholder="e.g. CEO, Founder, VP, Director, Engineering Manager">
+          <select id="rosterLimit" title="Number of results">
+            <option value="10">10 people</option>
+            <option value="25">25 people</option>
+            <option value="50">50 people</option>
+            <option value="100">100 people</option>
+            <option value="250">250 people</option>
+          </select>
+          <button class="btn btn-primary" id="rosterBtn" onclick="fetchRoster()">Search Roster</button>
+        </div>
+        <p class="hint">Leave the role empty to retrieve general employees, or filter by specific executive and managerial titles.</p>
+        <div class="recent" id="recent-roster"></div>
+      </div>
     </div>
     <div id="profileStatus"></div>
     <div id="profileResult"></div>
@@ -362,6 +391,15 @@ const errorHTML = t => `<div class="msg msg-error">${esc(t)}</div>`;
 const emptyHTML = (a, b) => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><b>${esc(a)}</b>${esc(b)}</div>`;
 const isAuth = e => /401|login_required/.test(e.message);
 
+/* ---------- Mode Switching ---------- */
+let profileMode = 'lookup';
+function setProfileMode(m) {
+  profileMode = m;
+  document.querySelectorAll('#profileSeg button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  $('mode-lookup').style.display = m === 'lookup' ? 'block' : 'none';$('mode-roster').style.display = m === 'roster' ? 'block' : 'none';
+  $('profileStatus').innerHTML = '';$('profileResult').innerHTML = '';
+}
+
 /* ---------- Downloads / export ---------- */
 function download(name, mime, content) {
   const a = document.createElement('a');
@@ -385,8 +423,8 @@ async function checkStatus() {
 function showLoginOverlay() {
   $('loginOverlay').classList.add('active');
   ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = '');
-  $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
-  $('loginResult').style.display = 'none'; $('loginMessage').style.display = '';
+  $('loginSpinner').style.display = 'none';$('loginWaitText').style.display = 'none';
+  $('loginResult').style.display = 'none';$('loginMessage').style.display = '';
 }
 function closeLoginOverlay() { $('loginOverlay').classList.remove('active'); }
 function loginMsg(ok, text) {
@@ -399,21 +437,21 @@ function afterLogin(delay) {
 }
 async function doInteractiveLogin() {
   ['btnOpenBrowser', 'btnCloseOverlay', 'loginMessage'].forEach(i => $(i).style.display = 'none');
-  $('loginSpinner').style.display = ''; $('loginWaitText').style.display = '';
+  $('loginSpinner').style.display = '';$('loginWaitText').style.display = '';
   log('Opening browser for manual login...');
   try {
     const d = await (await fetch('/api/login-interactive', { method: 'POST' })).json();
-    $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
+    $('loginSpinner').style.display = 'none';$('loginWaitText').style.display = 'none';
     if (d.success) { loginMsg(true, d.message); log('Login successful!', 'success'); afterLogin(1200); }
     else { loginMsg(false, d.message); ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = ''); log('Login failed: ' + d.message, 'error'); }
   } catch (e) {
-    $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
+    $('loginSpinner').style.display = 'none';$('loginWaitText').style.display = 'none';
     loginMsg(false, e.message); ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = '');
   }
   checkStatus();
 }
 async function importCookies() {
-  const jsessionid = $('cookieJsessionid').value.trim(), li_at = $('cookieLiat').value.trim();
+  const jsessionid = $('cookieJsessionid').value.trim(), li_at =$('cookieLiat').value.trim();
   if (!jsessionid && !li_at) return;
   try {
     const d = await (await fetch('/api/import-cookies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsessionid, li_at }) })).json();
@@ -442,15 +480,21 @@ function addRecent(k, v) {
 function clearRecent(k) { try { localStorage.removeItem('rec_' + k); } catch (e) {} renderRecent(); }
 function renderRecent() {
   const draw = (box, k, fill) => {
+    if (!box) return;
     const l = getRecent(k);
     box.innerHTML = l.length ? 'Recent: ' + l.map((x, i) => `<button data-i="${i}">${esc(x.length > 32 ? x.slice(0, 32) + '…' : x)}</button>`).join('') + `<button class="linkbtn" data-clear="1">Clear</button>` : '';
     box.querySelectorAll('button').forEach(b => b.onclick = () => b.dataset.clear ? clearRecent(k) : fill(l[+b.dataset.i]));
   };
-  draw($('recent-profile'), 'profile', v => { $('profileUsername').value = v; fetchProfiles(); });
-  draw($('recent-posts'), 'posts-' + src, v => { $('postsInput').value = v; fetchPosts(); });
+  draw($('recent-profile'), 'profile', v => {$('profileUsername').value = v; fetchProfiles(); });
+  draw($('recent-roster'), 'roster', v => {
+    const parts = v.split(' — ');
+    $('rosterCompany').value = parts[0] || '';$('rosterRole').value = parts[1] || '';
+    fetchRoster();
+  });
+  draw($('recent-posts'), 'posts-' + src, v => {$('postsInput').value = v; fetchPosts(); });
 }
 
-/* ---------- Profiles ---------- */
+/* ---------- Profiles (Direct Lookup) ---------- */
 const pic = (u, c) => u ? `<img class="${c}" src="${link(u)}" referrerpolicy="no-referrer" loading="lazy" alt="">` : '';
 const dimLine = parts => { const t = parts.filter(Boolean).map(esc).join(' • '); return t ? `<p class="dim">${t}</p>` : ''; };
 const org = (name, url) => url ? `<a href="${link(url)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name);
@@ -461,7 +505,7 @@ let profiles = [];
 async function fetchProfiles() {
   const ids = [...new Set($('profileUsername').value.split(/[\s,;]+/).filter(Boolean).map(v => parseId(v, 'profile')))];
   if (!ids.length) { toast('Enter at least one profile link or username'); return; }
-  const out = $('profileResult'), st = $('profileStatus'), btn = $('profileBtn');
+  const out = $('profileResult'), st = $('profileStatus'), btn =$('profileBtn');
   btn.disabled = true; out.innerHTML = ''; profiles = []; const failed = [];
   for (let i = 0; i < ids.length; i++) {
     st.innerHTML = loadingHTML(`Fetching ${ids[i]}${ids.length > 1 ? ' (' + (i + 1) + ' of ' + ids.length + ')' : ''}...`);
@@ -519,20 +563,96 @@ function profileHTML(p) {
     </div>
     ${p.summary ? '<div class="card psec"><h2>About</h2><p class="body dim" dir="auto" style="line-height:1.6">' + esc(p.summary) + '</p></div>' : ''}
     ${section('Experience', p.positions, x => `<div class="row">${pic(x.companyLogo, 'logo')}<div>
-      <h3>${esc(x.title)} ${x.isCurrent ? '<span class="tag">Current</span>' : ''}</h3>
+      <h3>${esc(x.title)}${x.isCurrent ? '<span class="tag">Current</span>' : ''}</h3>
       <p>${org(x.company, x.companyUrl)}${x.employmentType ? ' • ' + esc(x.employmentType) : ''}</p>
-      ${dimLine([x.dates, x.location, x.companySize])}
-      ${x.description ? '<p class="body" dir="auto">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+      ${dimLine([x.dates, x.location, x.companySize])}${x.description ? '<p class="body" dir="auto">' + esc(x.description) + '</p>' : ''}</div></div>`)}
     ${section('Education', p.education, x => `<div class="row">${pic(x.logo, 'logo')}<div>
-      <h3>${org(x.school, x.schoolUrl)}</h3>${dimLine([x.degree, x.field])}${dimLine([x.dates])}
-      ${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+      <h3>${org(x.school, x.schoolUrl)}</h3>${dimLine([x.degree, x.field])}${dimLine([x.dates])}${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
     ${section('Certifications', p.certifications, x => `<div class="row"><div><h3>${esc(x.name)}</h3>${dimLine([x.authority, x.dates])}</div></div>`)}
     ${section('Volunteering', p.volunteer, x => `<div class="row">${pic(x.logo, 'logo')}<div>
-      <h3>${esc(x.role)}</h3><p>${org(x.org, x.orgUrl)}</p>${dimLine([x.dates])}
-      ${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+      <h3>${esc(x.role)}</h3><p>${org(x.org, x.orgUrl)}</p>${dimLine([x.dates])}${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
     ${tagList('Skills', p.skills)}${tagList('Languages', p.languages)}`;
 }
 function useForPosts(id) { switchTab('posts'); setSource('profile'); $('postsInput').value = id; fetchPosts(); }
+
+/* ---------- Company Roster & Decision-Maker Targeting ---------- */
+let rosterResults = [];
+async function fetchRoster() {
+  const company = $('rosterCompany').value.trim();
+  const role = $('rosterRole').value.trim();
+  const limit = $('rosterLimit').value;
+  if (!company) { toast('Please enter a company name, link, or numeric ID'); $('rosterCompany').focus(); return; }
+
+  const out = $('profileResult'), st = $('profileStatus'), btn =$('rosterBtn');
+  btn.disabled = true; out.innerHTML = '';
+  st.innerHTML = loadingHTML(`Searching employees at ${company}...`);
+  log(`Searching roster: company='${company}', role='${role}', limit=${limit}`);
+
+  const url = `/api/search/people?company=${encodeURIComponent(company)}&q=${encodeURIComponent(role)}&limit=${limit}`;
+  try {
+    const d = await apiFetch(url);
+    rosterResults = d.results || [];
+    st.innerHTML = '';
+    addRecent('roster', company + (role ? ' — ' + role : ''));
+    renderRoster();
+    log(`Found ${rosterResults.length} people`, 'success');
+  } catch (e) {
+    st.innerHTML = '';
+    if (isAuth(e)) { pendingAction = fetchRoster; showLoginOverlay(); }
+    else { out.innerHTML = errorHTML(e.message); log('Roster error: ' + e.message, 'error'); }
+  }
+  btn.disabled = false;
+}
+
+function rosterCSV() {
+  const cols = [
+    ['Name', r => r.name],
+    ['Headline', r => r.headline],
+    ['Location', r => r.location],
+    ['Public Identifier', r => r.publicIdentifier],
+    ['Profile URL', r => r.profileUrl || ('https://www.linkedin.com/in/' + r.publicIdentifier)]
+  ];
+  return toCSV(cols, rosterResults);
+}
+
+function renderRoster() {
+  const out = $('profileResult');
+  if (!rosterResults.length) {
+    out.innerHTML = emptyHTML('No team members found', 'Try checking the company spelling, adjusting the role title, or searching without title filters.');
+    return;
+  }
+
+  const bar = `<div class="toolbar">
+    <span class="n">${rosterResults.length} person${rosterResults.length > 1 ? 's' : ''} found</span>
+    <button class="btn btn-secondary btn-sm" onclick="copyText(JSON.stringify(rosterResults,null,2))">Copy JSON</button>
+    <button class="btn btn-secondary btn-sm" onclick="download('roster_'+stamp()+'.json','application/json',JSON.stringify(rosterResults,null,2))">⬇ JSON</button>
+    <button class="btn btn-primary btn-sm" onclick="download('roster_'+stamp()+'.csv','text/csv;charset=utf-8',rosterCSV())">⬇ CSV</button>
+  </div>`;
+
+  const cards = rosterResults.map(r => `
+    <div class="result-item" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <h3 style="font-size:1.02rem;margin-bottom:4px">
+          <a href="${link(r.profileUrl || ('https://www.linkedin.com/in/' + r.publicIdentifier))}" target="_blank" rel="noopener">${esc(r.name)}</a>
+        </h3>
+        <p class="headline" style="margin-bottom:6px">${esc(r.headline || 'No headline available')}</p>
+        ${r.location ? `<p class="dim" style="font-size:.8rem">📍 ${esc(r.location)}</p>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button class="btn btn-secondary btn-sm" onclick="loadFromRoster('${qa(r.publicIdentifier)}')">Inspect Profile</button>
+        <button class="btn btn-secondary btn-sm" onclick="useForPosts('${qa(r.publicIdentifier)}')">Posts</button>
+      </div>
+    </div>
+  `).join('');
+
+  out.innerHTML = bar + cards;
+}
+
+function loadFromRoster(username) {
+  setProfileMode('lookup');
+  $('profileUsername').value = username;
+  fetchProfiles();
+}
 
 /* ---------- Posts ---------- */
 const SRC = {
@@ -550,7 +670,7 @@ function setSource(s) {
 async function fetchPosts() {
   let v = $('postsInput').value.trim();
   if (!v) { toast('Enter a ' + SRC[src].label.toLowerCase().split(' or ')[0] + ' first'); $('postsInput').focus(); return; }
-  const n = $('postsCount').value, out = $('postsResult'), btn = $('postsBtn');
+  const n = $('postsCount').value, out = $('postsResult'), btn =$('postsBtn');
   if (src !== 'keyword') v = parseId(v, src);
   const url = src === 'keyword' ? '/api/search/posts?q=' + encodeURIComponent(v) + '&count=' + n
     : '/api/posts/' + src + '/' + encodeURIComponent(v) + '?count=' + n;
@@ -567,7 +687,7 @@ async function fetchPosts() {
 }
 const authorOf = p => p.author && typeof p.author === 'object' ? p.author : { name: p.author || '' };
 function viewPosts() {
-  const q = ($('pfQ') ? $('pfQ').value : '').toLowerCase(), media = $('pfM') && $('pfM').checked, s = $('pfS') ? $('pfS').value : 'default';
+  const q = ($('pfQ') ?$('pfQ').value : '').toLowerCase(), media = $('pfM') &&$('pfM').checked, s = $('pfS') ?$('pfS').value : 'default';
   let l = posts.filter(p => (!q || ((p.text || '') + ' ' + authorOf(p).name).toLowerCase().includes(q)) && (!media || p.media));
   const by = { likes: p => p.numLikes || 0, comments: p => p.numComments || 0, shares: p => p.numShares || 0, newest: p => p.createdTime ? new Date(p.createdTime).getTime() : 0 };
   if (by[s]) l = l.slice().sort((a, b) => by[s](b) - by[s](a));
@@ -646,9 +766,11 @@ function postHTML(p, nested) {
   </div>`;
 }
 
-/* ---------- Init ---------- */
+/* ---------- Init & Listeners ---------- */
 $('postsInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchPosts(); });
+$('rosterCompany').addEventListener('keydown', e => { if (e.key === 'Enter') fetchRoster(); });$('rosterRole').addEventListener('keydown', e => { if (e.key === 'Enter') fetchRoster(); });
 $('profileUsername').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || !e.shiftKey && !/\s/.test($('profileUsername').value.trim()))) { e.preventDefault(); fetchProfiles(); } });
+
 setSource('keyword');
 renderRecent();
 checkStatus();
