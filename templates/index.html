@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkedIn Voyager Scraper</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--blue:#2f8cf0;--blue-d:#0a66c2;--bg:#12121f;--card:#1a2038;--input:#0f1830;--text:#e9ecf3;--dim:#9aa3b8;--green:#2ecc71;--red:#ff5a5a;--amber:#ffb020;--border:#2a3354}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45}
+.container{max-width:980px;margin:0 auto;padding:0 20px 60px}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0;flex-wrap:wrap}
+.topbar h1{font-size:1.25rem;font-weight:700}
+.topbar h1 small{display:block;font-size:.78rem;font-weight:400;color:var(--dim)}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;background:var(--card);border:1px solid var(--border);font-size:.82rem;cursor:pointer;color:var(--text)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--red)}
+.dot.connected{background:var(--green);box-shadow:0 0 8px var(--green)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:20px}
+.tab{flex:1;padding:11px;background:none;border:0;border-radius:9px;color:var(--dim);font-size:.95rem;font-weight:600;cursor:pointer}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--blue-d);color:#fff}
+.panel{display:none}.panel.active{display:block}
+
+.card{background:var(--card);border-radius:12px;padding:22px;margin-bottom:16px;border:1px solid var(--border)}
+.card h2{font-size:1.05rem;margin-bottom:14px}
+.card h2 .count{font-size:.75rem;color:var(--dim);font-weight:400;margin-left:6px}
+.hint{font-size:.78rem;color:var(--dim);margin-top:6px}
+label.lbl{display:block;margin-bottom:6px;font-size:.82rem;color:var(--dim)}
+input,textarea,select{width:100%;padding:11px 14px;background:var(--input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.95rem;font-family:inherit}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue)}
+textarea{min-height:72px;resize:vertical}
+.bar{display:flex;gap:10px;align-items:stretch}
+.bar input,.bar textarea{flex:1}
+.bar select{width:auto}
+.btn{padding:11px 20px;border:0;border-radius:8px;font-size:.92rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.btn-primary{background:var(--blue-d);color:#fff}.btn-primary:hover{background:#0b5aa8}
+.btn-green{background:var(--green);color:#0b1a10}
+.btn-secondary{background:var(--input);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{border-color:var(--blue)}
+.btn-sm{padding:7px 12px;font-size:.8rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.seg{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.seg button{padding:8px 14px;border-radius:20px;border:1px solid var(--border);background:var(--input);color:var(--dim);cursor:pointer;font-size:.85rem}
+.seg button.active{background:rgba(47,140,240,.18);border-color:var(--blue);color:var(--text)}
+.recent{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center;font-size:.78rem;color:var(--dim)}
+.recent button{background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:3px 10px;cursor:pointer;font-size:.78rem}
+.recent button:hover{border-color:var(--blue)}
+
+/* result toolbar */
+.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 14px rgba(0,0,0,.35)}
+.toolbar .grow{flex:1;min-width:140px}
+.toolbar input,.toolbar select{padding:7px 10px;font-size:.85rem}
+.toolbar select{width:auto}
+.toolbar .n{font-size:.85rem;color:var(--dim);margin-right:auto}
+.chk{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--dim);cursor:pointer}
+.chk input{width:auto}
+
+.loading{text-align:center;padding:36px;color:var(--dim)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.msg{padding:14px 16px;border-radius:8px;margin-top:12px}
+.msg-error{background:rgba(255,90,90,.1);border:1px solid rgba(255,90,90,.3);color:var(--red)}
+.msg-success{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);color:var(--green)}
+.empty{text-align:center;padding:36px 16px;color:var(--dim)}
+.empty b{display:block;color:var(--text);margin-bottom:4px}
+
+/* toast */
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#0d1117;border:1px solid var(--border);color:var(--text);padding:10px 18px;border-radius:8px;opacity:0;pointer-events:none;transition:.25s;z-index:2000;font-size:.88rem}
+#toast.show{opacity:1;transform:translateX(-50%)}
+
+/* login */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.overlay.active{display:flex}
+.modal{background:var(--card);border-radius:16px;padding:32px;max-width:480px;width:100%;text-align:center;border:1px solid var(--border)}
+.modal h2{margin-bottom:10px}.modal p{color:var(--dim);margin-bottom:18px;line-height:1.6}
+.modal .spinner{margin:18px auto}
+.modal .fg{text-align:left;margin-bottom:12px}
+
+/* log drawer */
+.log-panel{background:#0d1117;border-radius:8px;padding:14px;max-height:200px;overflow-y:auto;font-family:Menlo,Monaco,monospace;font-size:.78rem;line-height:1.6}
+.log-entry{color:var(--dim)}.log-entry.error{color:var(--red)}.log-entry.success{color:var(--green)}
+details.logbox{margin-top:24px}
+details.logbox>summary{cursor:pointer;color:var(--dim);font-size:.85rem;margin-bottom:10px}
+
+/* profile */
+.banner{display:block;width:100%;height:130px;object-fit:cover;border-radius:12px 12px 0 0;background:var(--input)}
+.banner+.profile-card{border-radius:0 0 12px 12px;border-top:0}
+.profile-card{display:flex;gap:22px;padding:22px;background:linear-gradient(135deg,rgba(10,102,194,.12),rgba(15,24,48,.5));border-radius:12px;border:1px solid var(--border)}
+.avatar{width:84px;height:84px;border-radius:50%;background:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:1.9rem;font-weight:700;flex-shrink:0;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.profile-card h2{font-size:1.35rem;margin-bottom:2px}
+.headline{color:var(--dim);margin-bottom:10px}
+.details{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:.85rem;color:var(--dim)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{padding:3px 10px;background:rgba(47,140,240,.18);border-radius:20px;font-size:.75rem;color:#7db8f7;text-decoration:none}
+.acts{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.acts a{color:var(--blue);font-size:.88rem}
+.psec{margin-top:14px}
+.row{display:flex;gap:14px;padding:12px 0;border-top:1px solid var(--border)}
+.row:first-of-type{border-top:0}
+.row h3{font-size:.95rem;margin-bottom:2px}.row p{font-size:.85rem;margin:2px 0}
+.row a,.post a{color:var(--blue);text-decoration:none}
+.logo{width:46px;height:46px;border-radius:6px;object-fit:contain;background:#fff;flex-shrink:0}
+.logo.round{border-radius:50%;object-fit:cover}
+.dim{color:var(--dim)}
+.body{white-space:pre-wrap;margin-top:6px!important}
+details.pf{margin-bottom:18px}
+details.pf>summary{cursor:pointer;font-weight:600;padding:10px 0;color:var(--dim)}
+
+/* posts */
+.result-item{padding:16px;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:10px;border:1px solid rgba(255,255,255,.06)}
+.post .text{white-space:pre-wrap;line-height:1.6;font-size:.92rem;margin:10px 0}
+.post .text.clamp{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.linkbtn{background:none;border:0;color:var(--blue);cursor:pointer;font-size:.8rem;padding:0}
+.meta{display:flex;gap:16px;margin-top:8px;font-size:.8rem;color:var(--dim);flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{padding:2px 8px;border-radius:12px;background:rgba(255,255,255,.06);font-size:.75rem}
+.nested{margin:10px 0 0 12px;border-left:3px solid var(--blue)}
+.media-grid{display:grid;gap:4px;margin:8px 0}
+.media-grid.n2,.media-grid.n3,.media-grid.n4{grid-template-columns:1fr 1fr}
+.media-grid img,.doc img,.post video{width:100%;border-radius:8px;display:block}
+.post video{max-height:480px;background:#000;margin:8px 0}
+.doc{display:flex;gap:12px;align-items:center;margin:8px 0;padding:10px;border-radius:8px;background:rgba(255,255,255,.04)}
+.doc img{width:110px;flex-shrink:0}
+.post details{margin-top:10px;font-size:.85rem}.post summary{cursor:pointer;color:var(--dim)}
+.cmt{padding:8px 0 8px 10px;border-left:2px solid var(--border);margin-top:8px}.cmt.reply{margin-left:16px}.cmt p{margin:4px 0}
+.poll{margin:10px 0}.poll h3{font-size:.95rem;margin-bottom:8px}
+.poll .opt{position:relative;display:flex;justify-content:space-between;gap:10px;padding:8px 12px;margin:6px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:.85rem}
+.poll .fill{position:absolute;top:0;bottom:0;left:0;background:rgba(47,140,240,.28)}
+.poll .opt span,.poll .opt b{position:relative}
+
+@media(max-width:640px){
+ .profile-card{flex-direction:column;align-items:center;text-align:center}.details,.acts{justify-content:center}
+ .bar{flex-wrap:wrap}.bar .btn,.bar select{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <h1>🔗 LinkedIn Voyager Scraper<small>Fetch profiles and posts, then export them</small></h1>
+    <button class="pill" id="statusPill" onclick="showLoginOverlay()" title="Click to log in or switch account">
+      <span class="dot" id="statusDot"></span><span id="statusText">Checking...</span>
+    </button>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="profile" onclick="switchTab('profile')">👤 Profiles</button>
+    <button class="tab" data-tab="posts" onclick="switchTab('posts')">📝 Posts</button>
+  </div>
+
+  <!-- Profiles -->
+  <div id="panel-profile" class="panel active">
+    <div class="card">
+      <h2>Get profile data</h2>
+      <label class="lbl" for="profileUsername">Profile links or usernames — one or many</label>
+      <div class="bar">
+        <textarea id="profileUsername" rows="2" placeholder="https://www.linkedin.com/in/williamhgates/&#10;satyanadella, jeffweiner08"></textarea>
+        <button class="btn btn-primary" id="profileBtn" onclick="fetchProfiles()">Fetch</button>
+      </div>
+      <p class="hint">Paste full LinkedIn URLs or usernames. Separate several with commas, spaces, or new lines. Ctrl+Enter to fetch.</p>
+      <div class="recent" id="recent-profile"></div>
+    </div>
+    <div id="profileStatus"></div>
+    <div id="profileResult"></div>
+  </div>
+
+  <!-- Posts -->
+  <div id="panel-posts" class="panel">
+    <div class="card">
+      <h2>Collect posts</h2>
+      <div class="seg" id="srcSeg">
+        <button class="active" data-src="keyword" onclick="setSource('keyword')">🔎 By keyword</button>
+        <button data-src="profile" onclick="setSource('profile')">👤 From a person</button>
+        <button data-src="company" onclick="setSource('company')">🏢 From a company</button>
+      </div>
+      <label class="lbl" for="postsInput" id="postsLabel"></label>
+      <div class="bar">
+        <input type="text" id="postsInput" autocomplete="off">
+        <select id="postsCount" title="Number of posts">
+          <option value="10">10 posts</option><option value="25">25 posts</option><option value="50">50 posts</option>
+        </select>
+        <button class="btn btn-primary" id="postsBtn" onclick="fetchPosts()">Get posts</button>
+      </div>
+      <p class="hint" id="postsHint"></p>
+      <div class="recent" id="recent-posts"></div>
+    </div>
+    <div id="postsResult"></div>
+  </div>
+
+  <details class="logbox">
+    <summary>📋 Activity log</summary>
+    <div class="log-panel" id="logPanel"><div class="log-entry">Ready. You'll be asked to log in if needed.</div></div>
+  </details>
+</div>
+
+<div id="toast"></div>
+
+<!-- Login -->
+<div class="overlay" id="loginOverlay">
+  <div class="modal">
+    <h2>🔐 Log in to LinkedIn</h2>
+    <p id="loginMessage">A browser window will open so you can log in. Your session is captured automatically once you finish.</p>
+    <div id="loginSpinner" class="spinner" style="display:none"></div>
+    <p id="loginWaitText" style="display:none">Waiting for you to log in...<br><small>The browser closes automatically when login is detected.</small></p>
+    <div id="loginResult" class="msg" style="display:none;margin:0 0 16px"></div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-green" id="btnOpenBrowser" onclick="doInteractiveLogin()">🌐 Open browser to log in</button>
+      <button class="btn btn-secondary" id="btnCloseOverlay" onclick="closeLoginOverlay()">Cancel</button>
+    </div>
+    <details style="margin-top:22px;text-align:left">
+      <summary style="cursor:pointer;color:var(--dim);font-size:.85rem">Or paste cookies manually (DevTools → Application → Cookies)</summary>
+      <div class="fg" style="margin-top:12px"><label class="lbl">JSESSIONID</label><input type="text" id="cookieJsessionid" placeholder="ajax:123456789"></div>
+      <div class="fg"><label class="lbl">li_at</label><input type="text" id="cookieLiat" placeholder="AQED..."></div>
+      <button class="btn btn-secondary" onclick="importCookies()">Import cookies</button>
+    </details>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { if (s == null || s === '') return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+const qa = s => esc(s).replace(/"/g, '&quot;');
+const num = n => (n || 0).toLocaleString();
+const link = u => /^https?:\/\//.test(u || '') ? qa(u) : '#';
+let pendingAction = null;
+
+/* ---------- UI helpers ---------- */
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+function log(msg, type) {
+  const e = document.createElement('div');
+  e.className = 'log-entry ' + (type || '');
+  e.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  $('logPanel').appendChild(e); $('logPanel').scrollTop = 1e9;
+}
+let toastT;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+const loadingHTML = t => `<div class="loading"><div class="spinner"></div><p>${esc(t)}</p></div>`;
+const errorHTML = t => `<div class="msg msg-error">${esc(t)}</div>`;
+const emptyHTML = (a, b) => `<div class="empty"><b>${esc(a)}</b>${esc(b)}</div>`;
+const isAuth = e => /401|login_required/.test(e.message);
+
+/* ---------- Downloads / export ---------- */
+function download(name, mime, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+const csvCell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
+function toCSV(cols, rows) { return '\ufeff' + [cols.map(c => csvCell(c[0])).join(',')].concat(rows.map(r => cols.map(c => csvCell(c[1](r))).join(','))).join('\r\n'); }
+function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Copied to clipboard'), () => toast('Copy failed')); }
+
+/* ---------- Status & login ---------- */
+async function checkStatus() {
+  try {
+    const d = await (await fetch('/api/status')).json();
+    $('statusDot').className = 'dot' + (d.logged_in ? ' connected' : '');
+    $('statusText').textContent = d.logged_in ? 'Connected to LinkedIn' : d.has_session ? 'Session expired — click to log in' : 'Not connected — click to log in';
+  } catch (e) { $('statusText').textContent = 'Server not responding'; }
+}
+function showLoginOverlay() {
+  $('loginOverlay').classList.add('active');
+  ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = '');
+  $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
+  $('loginResult').style.display = 'none'; $('loginMessage').style.display = '';
+}
+function closeLoginOverlay() { $('loginOverlay').classList.remove('active'); }
+function loginMsg(ok, text) {
+  const r = $('loginResult'); r.style.display = 'block';
+  r.className = 'msg ' + (ok ? 'msg-success' : 'msg-error'); r.textContent = (ok ? '✓ ' : '✗ ') + text;
+}
+function afterLogin(delay) {
+  checkStatus();
+  setTimeout(() => { closeLoginOverlay(); const f = pendingAction; pendingAction = null; if (f) f(); }, delay);
+}
+async function doInteractiveLogin() {
+  ['btnOpenBrowser', 'btnCloseOverlay', 'loginMessage'].forEach(i => $(i).style.display = 'none');
+  $('loginSpinner').style.display = ''; $('loginWaitText').style.display = '';
+  log('Opening browser for manual login...');
+  try {
+    const d = await (await fetch('/api/login-interactive', { method: 'POST' })).json();
+    $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
+    if (d.success) { loginMsg(true, d.message); log('Login successful!', 'success'); afterLogin(1200); }
+    else { loginMsg(false, d.message); ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = ''); log('Login failed: ' + d.message, 'error'); }
+  } catch (e) {
+    $('loginSpinner').style.display = 'none'; $('loginWaitText').style.display = 'none';
+    loginMsg(false, e.message); ['btnOpenBrowser', 'btnCloseOverlay'].forEach(i => $(i).style.display = '');
+  }
+  checkStatus();
+}
+async function importCookies() {
+  const jsessionid = $('cookieJsessionid').value.trim(), li_at = $('cookieLiat').value.trim();
+  if (!jsessionid && !li_at) return;
+  try {
+    const d = await (await fetch('/api/import-cookies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsessionid, li_at }) })).json();
+    loginMsg(d.success, d.message);
+    if (d.success) { log('Cookies imported!', 'success'); afterLogin(1000); }
+  } catch (e) { loginMsg(false, e.message); }
+}
+async function apiFetch(url) {
+  const r = await fetch(url);
+  if (r.status === 401) throw new Error('401 login_required');
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || r.statusText); }
+  return r.json();
+}
+
+/* ---------- Input helpers: URLs -> ids, recent history ---------- */
+function parseId(v, kind) {
+  v = v.trim();
+  const m = v.match(kind === 'company' ? /linkedin\.com\/company\/([^\/?#\s]+)/i : /linkedin\.com\/in\/([^\/?#\s]+)/i);
+  return decodeURIComponent(m ? m[1] : v.replace(/^@/, '').replace(/\/+$/, ''));
+}
+function getRecent(k) { try { return JSON.parse(localStorage.getItem('rec_' + k) || '[]'); } catch (e) { return []; } }
+function addRecent(k, v) {
+  try { const l = [v].concat(getRecent(k).filter(x => x !== v)).slice(0, 6); localStorage.setItem('rec_' + k, JSON.stringify(l)); } catch (e) {}
+  renderRecent();
+}
+function clearRecent(k) { try { localStorage.removeItem('rec_' + k); } catch (e) {} renderRecent(); }
+function renderRecent() {
+  const draw = (box, k, fill) => {
+    const l = getRecent(k);
+    box.innerHTML = l.length ? 'Recent: ' + l.map((x, i) => `<button data-i="${i}">${esc(x.length > 32 ? x.slice(0, 32) + '…' : x)}</button>`).join('') + `<button class="linkbtn" data-clear="1">Clear</button>` : '';
+    box.querySelectorAll('button').forEach(b => b.onclick = () => b.dataset.clear ? clearRecent(k) : fill(l[+b.dataset.i]));
+  };
+  draw($('recent-profile'), 'profile', v => { $('profileUsername').value = v; fetchProfiles(); });
+  draw($('recent-posts'), 'posts-' + src, v => { $('postsInput').value = v; fetchPosts(); });
+}
+
+/* ---------- Profiles ---------- */
+const pic = (u, c) => u ? `<img class="${c}" src="${link(u)}" referrerpolicy="no-referrer" loading="lazy" alt="">` : '';
+const dimLine = parts => { const t = parts.filter(Boolean).map(esc).join(' • '); return t ? `<p class="dim">${t}</p>` : ''; };
+const org = (name, url) => url ? `<a href="${link(url)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name);
+const section = (title, list, row) => list && list.length ? `<div class="card psec"><h2>${title}<span class="count">${list.length}</span></h2>${list.map(row).join('')}</div>` : '';
+const tagList = (title, list) => list && list.length ? `<div class="card psec"><h2>${title}<span class="count">${list.length}</span></h2><div class="tags">${list.map(s => '<span class="tag">' + esc(s) + '</span>').join('')}</div></div>` : '';
+
+let profiles = [];
+async function fetchProfiles() {
+  const ids = [...new Set($('profileUsername').value.split(/[\s,;]+/).filter(Boolean).map(v => parseId(v, 'profile')))];
+  if (!ids.length) { toast('Enter at least one profile link or username'); return; }
+  const out = $('profileResult'), st = $('profileStatus'), btn = $('profileBtn');
+  btn.disabled = true; out.innerHTML = ''; profiles = []; const failed = [];
+  for (let i = 0; i < ids.length; i++) {
+    st.innerHTML = loadingHTML(`Fetching ${ids[i]}${ids.length > 1 ? ' (' + (i + 1) + ' of ' + ids.length + ')' : ''}...`);
+    log('Fetching profile: ' + ids[i]);
+    try {
+      const p = await apiFetch('/api/profile/' + encodeURIComponent(ids[i]));
+      profiles.push(p); log('Profile loaded: ' + p.name, 'success');
+    } catch (e) {
+      if (isAuth(e)) { st.innerHTML = ''; btn.disabled = false; pendingAction = fetchProfiles; showLoginOverlay(); return; }
+      failed.push(ids[i] + ' — ' + e.message); log('Error (' + ids[i] + '): ' + e.message, 'error');
+    }
+  }
+  btn.disabled = false; st.innerHTML = failed.length ? errorHTML('Could not fetch: ' + failed.join('; ')) : '';
+  if (profiles.length) { addRecent('profile', ids.join(', ')); renderProfiles(); }
+  else if (!failed.length) out.innerHTML = emptyHTML('No data', 'LinkedIn returned nothing for this profile.');
+}
+function profileCSV() {
+  const cols = [['Name', p => p.name], ['Headline', p => p.headline], ['Current title', p => p.currentTitle], ['Current company', p => p.currentCompany],
+    ['Location', p => p.location], ['Industry', p => p.industry], ['Profile URL', p => p.profileUrl], ['Summary', p => p.summary],
+    ['Skills', p => (p.skills || []).join('; ')], ['Languages', p => (p.languages || []).join('; ')],
+    ['Experience', p => (p.positions || []).map(x => [x.title, x.company, x.dates].filter(Boolean).join(' @ ')).join(' | ')],
+    ['Education', p => (p.education || []).map(x => [x.school, x.degree, x.field].filter(Boolean).join(', ')).join(' | ')]];
+  return toCSV(cols, profiles);
+}
+function renderProfiles() {
+  const multi = profiles.length > 1;
+  const bar = `<div class="toolbar"><span class="n">${profiles.length} profile${multi ? 's' : ''} loaded</span>
+    <button class="btn btn-secondary btn-sm" onclick="copyText(JSON.stringify(multi_()?profiles:profiles[0],null,2))">Copy JSON</button>
+    <button class="btn btn-secondary btn-sm" onclick="download('profiles_'+stamp()+'.json','application/json',JSON.stringify(multi_()?profiles:profiles[0],null,2))">⬇ JSON</button>
+    <button class="btn btn-primary btn-sm" onclick="download('profiles_'+stamp()+'.csv','text/csv;charset=utf-8',profileCSV())">⬇ CSV</button></div>`;
+  $('profileResult').innerHTML = bar + profiles.map(p => multi
+    ? `<details class="pf" open><summary>${esc(p.name)} <span class="dim">— ${esc(p.headline)}</span></summary>${profileHTML(p)}</details>` : profileHTML(p)).join('');
+}
+const multi_ = () => profiles.length > 1;
+function profileHTML(p) {
+  const init = (p.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const flags = [p.premium && 'Premium', p.creator && 'Creator', p.influencer && 'Influencer'].filter(Boolean).map(f => `<span class="tag">${f}</span>`).join(' ');
+  const causes = (p.causes || []).map(c => c.replace(/_/g, ' ').toLowerCase());
+  return `${pic(p.backgroundPicture, 'banner')}
+    <div class="profile-card">
+      <div class="avatar">${p.profilePicture ? pic(p.profilePicture, '') : esc(init)}</div>
+      <div>
+        <h2>${esc(p.name)} ${flags}</h2>
+        <p class="headline">${esc(p.headline)}</p>
+        <div class="details">
+          ${p.currentCompany ? '<span>🏢 ' + esc(p.currentCompany) + '</span>' : ''}
+          ${p.currentTitle ? '<span>💼 ' + esc(p.currentTitle) + '</span>' : ''}
+          ${p.location ? '<span>📍 ' + esc(p.location) + (p.countryCode ? ' (' + esc(p.countryCode) + ')' : '') + '</span>' : ''}
+          ${p.industry ? '<span>🏭 ' + esc(p.industry) + '</span>' : ''}
+        </div>
+        ${causes.length ? '<div class="tags">' + causes.map(c => '<span class="tag">♥ ' + esc(c) + '</span>').join('') + '</div>' : ''}
+        <div class="acts"><a href="${link(p.profileUrl)}" target="_blank" rel="noopener">Open on LinkedIn ↗</a>
+          ${p.publicIdentifier || p.username ? `<button class="btn btn-secondary btn-sm" onclick="useForPosts('${qa(p.publicIdentifier || p.username)}')">See their posts</button>` : ''}</div>
+      </div>
+    </div>
+    ${p.summary ? '<div class="card psec"><h2>About</h2><p class="body dim" dir="auto" style="line-height:1.6">' + esc(p.summary) + '</p></div>' : ''}
+    ${section('Experience', p.positions, x => `<div class="row">${pic(x.companyLogo, 'logo')}<div>
+      <h3>${esc(x.title)} ${x.isCurrent ? '<span class="tag">Current</span>' : ''}</h3>
+      <p>${org(x.company, x.companyUrl)}${x.employmentType ? ' • ' + esc(x.employmentType) : ''}</p>
+      ${dimLine([x.dates, x.location, x.companySize])}
+      ${x.description ? '<p class="body" dir="auto">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+    ${section('Education', p.education, x => `<div class="row">${pic(x.logo, 'logo')}<div>
+      <h3>${org(x.school, x.schoolUrl)}</h3>${dimLine([x.degree, x.field])}${dimLine([x.dates])}
+      ${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+    ${section('Certifications', p.certifications, x => `<div class="row"><div><h3>${esc(x.name)}</h3>${dimLine([x.authority, x.dates])}</div></div>`)}
+    ${section('Volunteering', p.volunteer, x => `<div class="row">${pic(x.logo, 'logo')}<div>
+      <h3>${esc(x.role)}</h3><p>${org(x.org, x.orgUrl)}</p>${dimLine([x.dates])}
+      ${x.description ? '<p class="body">' + esc(x.description) + '</p>' : ''}</div></div>`)}
+    ${tagList('Skills', p.skills)}${tagList('Languages', p.languages)}`;
+}
+function useForPosts(id) { switchTab('posts'); setSource('profile'); $('postsInput').value = id; fetchPosts(); }
+
+/* ---------- Posts ---------- */
+const SRC = {
+  keyword: { label: 'Keyword or phrase', ph: 'e.g. python, AI, machine learning', hint: 'Finds public posts that mention this term.' },
+  profile: { label: 'Profile link or username', ph: 'e.g. https://www.linkedin.com/in/williamhgates/', hint: 'Gets the latest posts published by this person.' },
+  company: { label: 'Company page link or name from the URL', ph: 'e.g. https://www.linkedin.com/company/microsoft/', hint: 'Use the part after linkedin.com/company/ — or paste the full link.' }
+};
+let src = 'keyword', posts = [];
+function setSource(s) {
+  src = s;
+  document.querySelectorAll('#srcSeg button').forEach(b => b.classList.toggle('active', b.dataset.src === s));
+  $('postsLabel').textContent = SRC[s].label; $('postsInput').placeholder = SRC[s].ph; $('postsHint').textContent = SRC[s].hint;
+  $('postsInput').value = ''; renderRecent();
+}
+async function fetchPosts() {
+  let v = $('postsInput').value.trim();
+  if (!v) { toast('Enter a ' + SRC[src].label.toLowerCase().split(' or ')[0] + ' first'); $('postsInput').focus(); return; }
+  const n = $('postsCount').value, out = $('postsResult'), btn = $('postsBtn');
+  if (src !== 'keyword') v = parseId(v, src);
+  const url = src === 'keyword' ? '/api/search/posts?q=' + encodeURIComponent(v) + '&count=' + n
+    : '/api/posts/' + src + '/' + encodeURIComponent(v) + '?count=' + n;
+  btn.disabled = true; out.innerHTML = loadingHTML('Collecting up to ' + n + ' posts...'); log('Fetching posts (' + src + '): ' + v);
+  try {
+    const d = await apiFetch(url);
+    posts = d.posts || []; addRecent('posts-' + src, $('postsInput').value.trim());
+    window.postsLabel = v; renderPostsView(); log('Found ' + posts.length + ' posts', 'success');
+  } catch (e) {
+    if (isAuth(e)) { out.innerHTML = ''; pendingAction = fetchPosts; showLoginOverlay(); }
+    else { out.innerHTML = errorHTML(e.message); log('Error: ' + e.message, 'error'); }
+  }
+  btn.disabled = false;
+}
+const authorOf = p => p.author && typeof p.author === 'object' ? p.author : { name: p.author || '' };
+function viewPosts() {
+  const q = ($('pfQ') ? $('pfQ').value : '').toLowerCase(), media = $('pfM') && $('pfM').checked, s = $('pfS') ? $('pfS').value : 'default';
+  let l = posts.filter(p => (!q || ((p.text || '') + ' ' + authorOf(p).name).toLowerCase().includes(q)) && (!media || p.media));
+  const by = { likes: p => p.numLikes || 0, comments: p => p.numComments || 0, shares: p => p.numShares || 0, newest: p => p.createdTime ? new Date(p.createdTime).getTime() : 0 };
+  if (by[s]) l = l.slice().sort((a, b) => by[s](b) - by[s](a));
+  return l;
+}
+function renderPostsView() {
+  const out = $('postsResult');
+  if (!posts.length) { out.innerHTML = emptyHTML('No posts found', 'Try a different keyword, or check the spelling of the username.'); return; }
+  out.innerHTML = `<div class="toolbar">
+      <span class="n" id="pfN"></span>
+      <input class="grow" id="pfQ" type="search" placeholder="Filter by text or author..." oninput="drawPosts()">
+      <select id="pfS" onchange="drawPosts()"><option value="default">Original order</option><option value="newest">Newest</option><option value="likes">Most likes</option><option value="comments">Most comments</option><option value="shares">Most shares</option></select>
+      <label class="chk"><input type="checkbox" id="pfM" onchange="drawPosts()">With media</label>
+      <button class="btn btn-secondary btn-sm" onclick="copyText(JSON.stringify(viewPosts(),null,2))">Copy JSON</button>
+      <button class="btn btn-secondary btn-sm" onclick="download('posts_'+stamp()+'.json','application/json',JSON.stringify(viewPosts(),null,2))">⬇ JSON</button>
+      <button class="btn btn-primary btn-sm" onclick="postsCSV()">⬇ CSV</button>
+    </div><div id="postList"></div>`;
+  drawPosts();
+}
+function drawPosts() {
+  const l = viewPosts();
+  $('pfN').textContent = l.length === posts.length ? posts.length + ' posts' : l.length + ' of ' + posts.length + ' posts';
+  $('postList').innerHTML = l.length ? l.map(p => postHTML(p)).join('') : emptyHTML('No posts match', 'Clear the filter to see all results.');
+}
+function postsCSV() {
+  const cols = [['Author', p => authorOf(p).name], ['Author headline', p => authorOf(p).headline], ['Author URL', p => authorOf(p).url],
+    ['Posted', p => p.createdTime || p.age], ['Text', p => p.text], ['Likes', p => p.numLikes], ['Comments', p => p.numComments], ['Shares', p => p.numShares],
+    ['Media type', p => p.media && p.media.type], ['Language', p => p.language], ['Post URL', p => p.permalink]];
+  download('posts_' + stamp() + '.csv', 'text/csv;charset=utf-8', toCSV(cols, viewPosts()));
+}
+
+const REACT = { LIKE: '👍', PRAISE: '👏', EMPATHY: '💛', APPRECIATION: '🤝', INTEREST: '💡', ENTERTAINMENT: '😄' };
+function mediaHTML(m, permalink) {
+  if (!m) return '';
+  if (m.type === 'images') return `<div class="media-grid n${Math.min(m.items.length, 4)}">` + m.items.map(i => `<a href="${link(i.url)}" target="_blank" rel="noopener">${pic(i.url, '')}</a>`).join('') + '</div>';
+  if (m.type === 'video') return `<video controls preload="none" poster="${link(m.thumb)}" src="${link(m.url)}"></video>
+    <div class="meta"><span>🎬 ${Math.round((m.duration || 0) / 1000)}s</span>${m.tool ? '<span>🛠 ' + esc(m.tool) + '</span>' : ''}${m.ai ? '<span>🤖 AI-generated</span>' : ''}<a href="${link(m.url)}" target="_blank" rel="noopener">Open video file ↗</a></div>`;
+  if (m.type === 'document') return `<a class="doc" href="${link(permalink)}" target="_blank" rel="noopener">${pic(m.cover, '')}<div><h3>${esc(m.title)}</h3><p class="dim">${num(m.pages)} pages — open the post to read</p></div></a>`;
+  if (m.type === 'article') return `<a class="doc" href="${link(m.url)}" target="_blank" rel="noopener">${pic(m.image, '')}<div><h3>${esc(m.title)}</h3><p class="dim">${esc(m.source)}</p></div></a>`;
+  if (m.type === 'poll') {
+    const total = m.options.reduce((t, o) => t + (o.votes || 0), 0) || 1;
+    return `<div class="poll"><h3>${esc(m.question)}</h3>` + m.options.map(o => `<div class="opt"><div class="fill" style="width:${Math.round((o.votes || 0) / total * 100)}%"></div><span>${esc(o.text)}</span><b>${o.votes == null ? '' : num(o.votes)}</b></div>`).join('')
+      + `<p class="dim" style="font-size:.8rem">${num(m.voters)} voters${m.status ? ' • ' + esc(m.status) : ''}</p></div>`;
+  }
+  return '';
+}
+function commentHTML(c, reply) {
+  return `<div class="cmt${reply ? ' reply' : ''}"><b>${org(c.author, c.url)}</b> <span class="dim">${esc(c.headline)}</span>
+    <p dir="auto">${esc(c.text)}</p>
+    <div class="meta"><span>👍 ${num(c.likes)}</span>${c.created ? '<span>' + new Date(c.created).toLocaleString() + '</span>' : ''}</div>
+    ${(c.replies || []).map(r => commentHTML(r, true)).join('')}</div>`;
+}
+function postHTML(p, nested) {
+  const a = authorOf(p);
+  const when = [p.age, p.createdTime ? new Date(p.createdTime).toLocaleString() : ''].filter(Boolean).join(' • ');
+  const long = (p.text || '').length > 280;
+  const reactions = Object.entries(p.reactions || {}).map(([k, v]) => `<span class="chip">${REACT[k] || esc(k)} ${num(v)}</span>`).join('');
+  const mentions = (p.mentions || []).map(m => `<a class="tag" href="${link(m.url)}" target="_blank" rel="noopener">@${esc(m.name)}</a>`).join('');
+  const cms = p.comments || [];
+  return `<div class="result-item post${nested ? ' nested' : ''}">
+    ${p.header ? '<p class="dim" style="font-size:.8rem">🔁 ' + esc(p.header) + '</p>' : ''}
+    ${p.group && !p.header ? '<p class="dim" style="font-size:.8rem">👥 ' + esc(p.group) + '</p>' : ''}
+    <div class="row" style="border:0;padding:0">${pic(a.image, 'logo round')}<div>
+      <h3>${a.url ? org(a.name, a.url) : esc(a.name)} ${a.type === 'company' ? '<span class="tag">Company</span>' : ''}${a.degree ? ' <span class="dim" style="font-weight:400;font-size:.8rem">' + esc(a.degree) + '</span>' : ''}</h3>
+      ${dimLine([a.headline])}${dimLine([when, p.language])}</div></div>
+    <div class="text${long ? ' clamp' : ''}" dir="auto">${esc(p.text)}</div>
+    ${long ? '<button class="linkbtn" onclick="this.previousElementSibling.classList.toggle(\'clamp\');this.textContent=this.textContent===\'Show more\'?\'Show less\':\'Show more\'">Show more</button>' : ''}
+    ${mentions ? '<div class="tags">' + mentions + '</div>' : ''}
+    ${mediaHTML(p.media, p.permalink)}
+    ${p.resharedFrom ? postHTML(p.resharedFrom, true) : ''}
+    <div class="meta"><span>👍 ${num(p.numLikes)}</span><span>💬 ${num(p.numComments)}</span><span>🔄 ${num(p.numShares)}</span>
+      ${p.sponsored ? '<span>Sponsored</span>' : ''}
+      ${p.permalink ? '<a href="' + link(p.permalink) + '" target="_blank" rel="noopener">Open on LinkedIn ↗</a>' : ''}</div>
+    ${reactions ? '<div class="chips">' + reactions + '</div>' : ''}
+    ${cms.length ? `<details><summary>${cms.length} of ${num(p.numComments)} comments (LinkedIn returns a preview)</summary>${cms.map(c => commentHTML(c)).join('')}</details>` : ''}
+  </div>`;
+}
+
+/* ---------- Init ---------- */
+$('postsInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchPosts(); });
+$('profileUsername').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || !e.shiftKey && !/\s/.test($('profileUsername').value.trim()))) { e.preventDefault(); fetchProfiles(); } });
+setSource('keyword');
+renderRecent();
+checkStatus();
+</script>
+</body>
+</html>

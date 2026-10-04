@@ -1,0 +1,5 @@
+venv/
+.env
+debug*
+linkedin_session.json
+__pycache__/
